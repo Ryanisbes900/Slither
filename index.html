@@ -1,0 +1,2769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Slither.io — Neon Arena</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ==========================================================================
+       Design Tokens & Base Reset
+       ========================================================================== */
+    :root {
+      --bg-arena: #0e121a;
+      --glass-bg: rgba(14, 18, 28, 0.76);
+      --glass-strong: rgba(12, 16, 26, 0.88);
+      --border-subtle: rgba(148, 163, 184, 0.16);
+      --border-glow: rgba(16, 185, 129, 0.45);
+
+      --emerald-400: #34d399;
+      --emerald-500: #10b981;
+      --emerald-600: #059669;
+      --cyan-400: #22d3ee;
+      --crimson-500: #ff2a55;
+      --amber-400: #fbbf24;
+
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--bg-arena);
+      color: var(--text-primary);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+
+    /* Full-Viewport Game Canvas */
+    #arenaCanvas {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      display: block;
+      z-index: 1;
+      cursor: crosshair;
+    }
+
+    /* ==========================================================================
+       In-Game HUD Elements
+       ========================================================================== */
+    .hud-layer {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 10;
+      transition: opacity 0.25s ease;
+    }
+
+    .hud-layer.hidden {
+      opacity: 0;
+      visibility: hidden;
+    }
+
+    /* Top-Left Stats Card */
+    .stats-card {
+      position: fixed;
+      top: 14px;
+      left: 14px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 168px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+    }
+
+    .stat-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .stat-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-secondary);
+    }
+
+    .stat-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .stat-val.emerald {
+      font-size: 1.3rem;
+      color: var(--emerald-400);
+    }
+
+    .stat-val.amber {
+      color: var(--amber-400);
+      font-size: 0.92rem;
+    }
+
+    /* Top-Center Audio & Controls Pill */
+    .top-center-bar {
+      position: fixed;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      pointer-events: auto;
+    }
+
+    .hud-icon-btn {
+      height: 38px;
+      padding: 0 13px;
+      border-radius: 999px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 0.78rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+      transition: all 0.15s ease;
+    }
+
+    .hud-icon-btn:hover {
+      background: rgba(30, 41, 59, 0.9);
+      border-color: rgba(148, 163, 184, 0.35);
+    }
+
+    .hud-icon-btn.muted {
+      color: #fb7185;
+      border-color: rgba(255, 42, 85, 0.4);
+    }
+
+    /* Top-Right Leaderboard */
+    .leaderboard-card {
+      position: fixed;
+      top: 14px;
+      right: 14px;
+      width: 215px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 10px 12px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+    }
+
+    .lb-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-secondary);
+      padding-bottom: 6px;
+      margin-bottom: 6px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .lb-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 3.5px;
+    }
+
+    .lb-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.77rem;
+      padding: 2.5px 6px;
+      border-radius: 7px;
+      color: var(--text-secondary);
+      transition: background 0.15s ease;
+    }
+
+    .lb-item.is-player {
+      background: rgba(16, 185, 129, 0.22);
+      border: 1px solid rgba(52, 211, 153, 0.35);
+      color: #ffffff;
+      font-weight: 700;
+    }
+
+    .lb-left {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .lb-rank {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      width: 18px;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .lb-item.is-player .lb-rank {
+      color: var(--emerald-400);
+    }
+
+    .lb-swatch {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .lb-name {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 112px;
+    }
+
+    .lb-score {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.74rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      flex-shrink: 0;
+    }
+
+    /* Bottom-Left Live Circular Minimap */
+    .minimap-wrap {
+      position: fixed;
+      bottom: 16px;
+      left: 16px;
+      width: 144px;
+      height: 144px;
+      border-radius: 50%;
+      background: rgba(10, 14, 22, 0.82);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 2px solid rgba(255, 42, 85, 0.45);
+      box-shadow:
+        0 10px 26px rgba(0, 0, 0, 0.45),
+        inset 0 0 18px rgba(255, 42, 85, 0.14);
+      overflow: hidden;
+    }
+
+    #minimapCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* Mobile / Touch Boost Button (Bottom-Right) */
+    .mobile-boost-btn {
+      position: fixed;
+      bottom: 22px;
+      right: 22px;
+      width: 82px;
+      height: 82px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, rgba(52, 211, 153, 0.36), rgba(16, 185, 129, 0.16));
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 2px solid rgba(52, 211, 153, 0.55);
+      color: #ffffff;
+      font-family: inherit;
+      font-size: 0.76rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      box-shadow: 0 10px 26px rgba(16, 185, 129, 0.25);
+      pointer-events: auto;
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: transform 0.1s ease, background 0.12s ease, box-shadow 0.12s ease;
+    }
+
+    .mobile-boost-btn.boosting,
+    .mobile-boost-btn:active {
+      transform: scale(0.92);
+      background: radial-gradient(circle at 35% 35%, rgba(52, 211, 153, 0.72), rgba(5, 150, 105, 0.45));
+      border-color: #a7f3d0;
+      box-shadow: 0 0 28px rgba(52, 211, 153, 0.65);
+    }
+
+    /* ==========================================================================
+       Glassmorphic Start & Game Over Overlays
+       ========================================================================== */
+    .overlay-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      background: rgba(8, 11, 18, 0.52);
+      backdrop-filter: blur(7px);
+      -webkit-backdrop-filter: blur(7px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      opacity: 1;
+      transition: opacity 0.25s ease, visibility 0.25s ease;
+    }
+
+    .overlay-backdrop.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .modal-card {
+      width: 100%;
+      max-width: 430px;
+      background: var(--glass-strong);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      border-radius: 24px;
+      padding: 24px 22px;
+      box-shadow:
+        0 25px 60px rgba(0, 0, 0, 0.65),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 14px;
+    }
+
+    .game-logo {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .logo-pill {
+      font-size: 0.68rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--emerald-400);
+      background: rgba(16, 185, 129, 0.14);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      padding: 3px 11px;
+      border-radius: 999px;
+    }
+
+    .logo-title {
+      font-size: 2.35rem;
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      line-height: 1.05;
+      background: linear-gradient(135deg, #ffffff 10%, #6ee7b7 55%, #22d3ee 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-shadow: 0 8px 30px rgba(16, 185, 129, 0.25);
+    }
+
+    /* Nickname Input */
+    .input-group {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      text-align: left;
+    }
+
+    .input-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-secondary);
+      padding-left: 4px;
+    }
+
+    .nickname-input {
+      width: 100%;
+      height: 44px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1.5px solid rgba(148, 163, 184, 0.24);
+      border-radius: 13px;
+      padding: 0 14px;
+      color: #ffffff;
+      font-family: inherit;
+      font-size: 0.96rem;
+      font-weight: 600;
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .nickname-input:focus {
+      border-color: var(--emerald-400);
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+    }
+
+    /* Skin Selector & Live Animated Preview */
+    .skin-picker-box {
+      width: 100%;
+      background: rgba(15, 23, 42, 0.72);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .skin-nav-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .skin-arrow-btn {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      background: rgba(30, 41, 59, 0.9);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.14s ease;
+    }
+
+    .skin-arrow-btn:hover {
+      background: rgba(51, 65, 85, 0.95);
+      border-color: var(--emerald-400);
+    }
+
+    .skin-arrow-btn:active {
+      transform: scale(0.93);
+    }
+
+    .skin-name-display {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .skin-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    .skin-counter {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.68rem;
+      color: var(--text-muted);
+    }
+
+    #skinPreviewCanvas {
+      width: 100%;
+      height: 68px;
+      border-radius: 11px;
+      background: radial-gradient(circle at center, rgba(30, 41, 59, 0.55), rgba(10, 14, 22, 0.85));
+      display: block;
+    }
+
+    /* Primary Play Button */
+    .play-cta-btn {
+      width: 100%;
+      height: 50px;
+      border: none;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: #ffffff;
+      font-family: inherit;
+      font-size: 1.05rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 12px 28px rgba(16, 185, 129, 0.38);
+      transition: transform 0.14s ease, filter 0.14s ease, box-shadow 0.14s ease;
+    }
+
+    .play-cta-btn:hover {
+      filter: brightness(1.08);
+      transform: translateY(-1px);
+      box-shadow: 0 15px 32px rgba(16, 185, 129, 0.48);
+    }
+
+    .play-cta-btn:active {
+      transform: translateY(1px) scale(0.98);
+    }
+
+    .controls-footer {
+      font-size: 0.72rem;
+      color: var(--text-secondary);
+      line-height: 1.45;
+    }
+
+    kbd {
+      background: rgba(30, 41, 59, 0.95);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      border-bottom-width: 2px;
+      border-radius: 5px;
+      padding: 1px 5px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.68rem;
+      color: #e2e8f0;
+    }
+
+    /* Game Over Stats Grid */
+    .gameover-badge {
+      font-size: 0.7rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #ff2a55;
+      background: rgba(255, 42, 85, 0.15);
+      border: 1px solid rgba(255, 42, 85, 0.38);
+      padding: 4px 12px;
+      border-radius: 999px;
+    }
+
+    .gameover-title {
+      font-size: 1.75rem;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+    }
+
+    .gameover-reason {
+      font-size: 0.84rem;
+      color: var(--text-secondary);
+      margin-top: -6px;
+    }
+
+    .summary-grid {
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 9px;
+    }
+
+    .summary-cell {
+      background: rgba(15, 23, 42, 0.82);
+      border: 1px solid var(--border-subtle);
+      border-radius: 13px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .summary-cell span {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-secondary);
+    }
+
+    .summary-cell strong {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--emerald-400);
+    }
+
+    .summary-cell strong.gold {
+      color: var(--amber-400);
+    }
+
+    .summary-cell strong.cyan {
+      color: var(--cyan-400);
+    }
+
+    .secondary-link-btn {
+      background: transparent;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      border-radius: 11px;
+      padding: 9px 16px;
+      font-family: inherit;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.14s ease;
+    }
+
+    .secondary-link-btn:hover {
+      background: rgba(30, 41, 59, 0.7);
+      color: #ffffff;
+    }
+
+    /* Responsive Mobile Adjustments */
+    @media (max-width: 640px) {
+      .stats-card {
+        top: 10px;
+        left: 10px;
+        padding: 8px 10px;
+        min-width: 134px;
+      }
+
+      .stat-val.emerald {
+        font-size: 1.1rem;
+      }
+
+      .leaderboard-card {
+        top: 10px;
+        right: 10px;
+        width: 165px;
+        padding: 8px 9px;
+      }
+
+      .lb-name {
+        max-width: 76px;
+      }
+
+      .top-center-bar {
+        top: auto;
+        bottom: 18px;
+        left: 50%;
+      }
+
+      .minimap-wrap {
+        width: 112px;
+        height: 112px;
+        bottom: 12px;
+        left: 12px;
+      }
+
+      .mobile-boost-btn {
+        width: 74px;
+        height: 74px;
+        bottom: 16px;
+        right: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Fullscreen World Canvas -->
+  <canvas id="arenaCanvas"></canvas>
+
+  <!-- In-Game HUD Layer -->
+  <div id="hudLayer" class="hud-layer hidden">
+    <!-- Top-Left Live Stats -->
+    <aside class="stats-card" aria-label="Player Statistics">
+      <div class="stat-row">
+        <span class="stat-label">Length</span>
+        <span id="hudLength" class="stat-val emerald">30</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Rank</span>
+        <span id="hudRank" class="stat-val">#23 / 23</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Kills</span>
+        <span id="hudKills" class="stat-val">0</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Best</span>
+        <span id="hudBest" class="stat-val amber">30</span>
+      </div>
+    </aside>
+
+    <!-- Top-Center Audio Control -->
+    <div class="top-center-bar">
+      <button id="muteToggleBtn" class="hud-icon-btn" type="button" title="Mute / Unmute Sound (M)">
+        <svg id="iconSoundOn" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+        </svg>
+        <svg id="iconSoundOff" style="display:none;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+          <line x1="23" y1="9" x2="17" y2="15" />
+          <line x1="17" y1="9" x2="23" y2="15" />
+        </svg>
+        <span id="muteLabel">Sound</span>
+      </button>
+    </div>
+
+    <!-- Top-Right Top 10 Leaderboard -->
+    <aside class="leaderboard-card" aria-label="Top 10 Leaderboard">
+      <div class="lb-header">
+        <span>Leaderboard</span>
+        <span>Top 10</span>
+      </div>
+      <ol id="leaderboardList" class="lb-list"></ol>
+    </aside>
+
+    <!-- Bottom-Left Live Circular Minimap -->
+    <div class="minimap-wrap" aria-label="Arena Radar Minimap">
+      <canvas id="minimapCanvas" width="288" height="288"></canvas>
+    </div>
+
+    <!-- Bottom-Right Mobile / Pointer Boost Button -->
+    <button id="mobileBoostBtn" class="mobile-boost-btn" type="button" aria-label="Hold to Boost">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+      </svg>
+      <span>BOOST</span>
+    </button>
+  </div>
+
+  <!-- Live-Action Glassmorphic Start Overlay -->
+  <div id="startOverlay" class="overlay-backdrop">
+    <div class="modal-card">
+      <div class="game-logo">
+        <span class="logo-pill">360° Multiplayer-Style Arena</span>
+        <h1 class="logo-title">SLITHER.IO</h1>
+      </div>
+
+      <div class="input-group">
+        <label class="input-label" for="nicknameInput">Nickname</label>
+        <input
+          id="nicknameInput"
+          class="nickname-input"
+          type="text"
+          maxlength="16"
+          placeholder="Enter your snake name..."
+          autocomplete="off"
+          spellcheck="false"
+        />
+      </div>
+
+      <div class="skin-picker-box">
+        <div class="skin-nav-row">
+          <button id="prevSkinBtn" class="skin-arrow-btn" type="button" aria-label="Previous Skin">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
+
+          <div class="skin-name-display">
+            <span id="skinNameEl" class="skin-title">Emerald Classic</span>
+            <span id="skinIndexEl" class="skin-counter">1 / 10</span>
+          </div>
+
+          <button id="nextSkinBtn" class="skin-arrow-btn" type="button" aria-label="Next Skin">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </button>
+        </div>
+
+        <canvas id="skinPreviewCanvas" width="380" height="68"></canvas>
+      </div>
+
+      <button id="playBtn" class="play-cta-btn" type="button">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="6 4 20 12 6 20 6 4" />
+        </svg>
+        <span>Play</span>
+      </button>
+
+      <div class="controls-footer">
+        Steer with <strong>Mouse</strong>, <strong>Touch</strong>, or <kbd>←</kbd><kbd>→</kbd> •
+        Boost with <strong>Click</strong>, <kbd>Space</kbd>, or <kbd>W</kbd>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game Over Modal -->
+  <div id="gameOverOverlay" class="overlay-backdrop hidden">
+    <div class="modal-card">
+      <span class="gameover-badge">Eliminated</span>
+      <h2 class="gameover-title">Your Snake Exploded!</h2>
+      <p id="deathReasonEl" class="gameover-reason">You ran into another snake.</p>
+
+      <div class="summary-grid">
+        <div class="summary-cell">
+          <span>Final Length</span>
+          <strong id="finalLengthEl">0</strong>
+        </div>
+        <div class="summary-cell">
+          <span>Eliminations</span>
+          <strong id="finalKillsEl" class="cyan">0</strong>
+        </div>
+        <div class="summary-cell">
+          <span>Peak Rank</span>
+          <strong id="finalPeakRankEl" class="gold">#1</strong>
+        </div>
+        <div class="summary-cell">
+          <span>Survival Time</span>
+          <strong id="finalTimeEl">0:00</strong>
+        </div>
+      </div>
+
+      <button id="playAgainBtn" class="play-cta-btn" type="button">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="23 4 23 10 17 10" />
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+        </svg>
+        <span>Play Again</span>
+      </button>
+
+      <button id="customizeBtn" class="secondary-link-btn" type="button">
+        Change Name or Skin
+      </button>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * ============================================================================
+     * SLITHER.IO — HIGH-PERFORMANCE 60FPS ARENA ENGINE
+     * ============================================================================
+     * Architecture:
+     * 1. SpatialHash (160px cell buckets) for O(1) segment & pellet queries
+     * 2. Snake Entity with continuous 360-degree steering & arc-length spine pathing
+     * 3. 22 Smart AI Bots with 7-whisker obstacle avoidance & feast-orb hunting
+     * 4. 550 Ambient Orbs + Death-Feast Trail Conversion + Mouth Magnetism
+     * 5. 10 Multi-Pattern Skins + Frustum-Culled 60fps Renderer + Live Minimap
+     * 6. Procedural Web Audio Synthesizer (pop, boost hum, explosion bass drop)
+     */
+    (function () {
+      'use strict';
+
+      /* ------------------------------------------------------------------------
+         1. World & Gameplay Constants
+         ------------------------------------------------------------------------ */
+      const ARENA_RADIUS = 2600;
+      const AI_BOT_COUNT = 22;
+      const AMBIENT_ORB_COUNT = 550;
+      const HASH_CELL_SIZE = 160;
+      const PLAYER_START_MASS = 32;
+      const MIN_BOOST_MASS = 18;
+      const HEAD_HITBOX_FACTOR = 0.78;
+      const MAGNET_RADIUS_FACTOR = 2.4;
+
+      const STORAGE_KEYS = {
+        NICKNAME: 'slither_arena_nickname_v1',
+        SKIN_IDX: 'slither_arena_skin_idx_v1',
+        BEST_MASS: 'slither_arena_best_mass_v1',
+        MUTED: 'slither_arena_muted_v1'
+      };
+
+      const BOT_NAMES = [
+        'ViperX', 'NeonKing', 'Noodle', 'CobraKai', 'Slinky',
+        'Apex', 'Wormhole', 'ByteMe', 'Glitch', 'Venom',
+        'Ouroboros', 'Sidewinder', 'Krait', 'Basilisk', 'Mamba',
+        'Hydra', 'PixelFang', 'NovaScale', 'DriftKing', 'ShadowBoa',
+        'LaserWorm', 'SlitherLord', 'Pythonic', 'ZeroGravity'
+      ];
+
+      /* ------------------------------------------------------------------------
+         2. 10 Custom Snake Skins
+         ------------------------------------------------------------------------ */
+      const SNAKE_SKINS = [
+        {
+          id: 'emerald',
+          name: 'Emerald Classic',
+          pattern: 'bands',
+          colors: ['#10b981', '#059669', '#34d399', '#047857'],
+          glow: 'rgba(52, 211, 153, 0.55)',
+          iris: '#fef08a'
+        },
+        {
+          id: 'cyber',
+          name: 'Cyber Neon',
+          pattern: 'stripes',
+          colors: ['#00f5d4', '#ff007f', '#00bbf9', '#ff007f'],
+          glow: 'rgba(0, 245, 212, 0.6)',
+          iris: '#ffffff'
+        },
+        {
+          id: 'magma',
+          name: 'Magma Lava',
+          pattern: 'gradient',
+          colors: ['#dc2626', '#ea580c', '#f59e0b', '#fde047'],
+          glow: 'rgba(249, 115, 22, 0.6)',
+          iris: '#fef08a'
+        },
+        {
+          id: 'rainbow',
+          name: 'Rainbow Prism',
+          pattern: 'rainbow',
+          colors: ['#ff2a55', '#ff9f1c', '#facc15', '#10b981', '#00bbf9', '#a855f7'],
+          glow: 'rgba(168, 85, 247, 0.55)',
+          iris: '#ffffff'
+        },
+        {
+          id: 'void',
+          name: 'Void Phantom',
+          pattern: 'bands',
+          colors: ['#5b21b6', '#7c3aed', '#a855f7', '#3b0764'],
+          glow: 'rgba(168, 85, 247, 0.65)',
+          iris: '#e879f9'
+        },
+        {
+          id: 'bumblebee',
+          name: 'Bumblebee',
+          pattern: 'stripes',
+          colors: ['#facc15', '#facc15', '#18181b', '#18181b'],
+          glow: 'rgba(250, 204, 21, 0.55)',
+          iris: '#fde047'
+        },
+        {
+          id: 'arctic',
+          name: 'Arctic Frost',
+          pattern: 'gradient',
+          colors: ['#0284c7', '#38bdf8', '#bae6fd', '#f8fafc'],
+          glow: 'rgba(56, 189, 248, 0.6)',
+          iris: '#e0f2fe'
+        },
+        {
+          id: 'sunset',
+          name: 'Sunset Synth',
+          pattern: 'gradient',
+          colors: ['#f43f5e', '#ec4899', '#f97316', '#fbbf24'],
+          glow: 'rgba(236, 72, 153, 0.58)',
+          iris: '#fef3c7'
+        },
+        {
+          id: 'toxic',
+          name: 'Toxic Viper',
+          pattern: 'stripes',
+          colors: ['#84cc16', '#a3e635', '#111827', '#1f2937'],
+          glow: 'rgba(163, 230, 53, 0.6)',
+          iris: '#bef264'
+        },
+        {
+          id: 'royal',
+          name: 'Royal Gold',
+          pattern: 'bands',
+          colors: ['#eab308', '#fef9c3', '#ca8a04', '#fde047'],
+          glow: 'rgba(250, 204, 21, 0.6)',
+          iris: '#ffffff'
+        }
+      ];
+
+      /* ------------------------------------------------------------------------
+         3. Safe Storage & Math Utilities
+         ------------------------------------------------------------------------ */
+      const Storage = {
+        get(key, fallback) {
+          try {
+            const v = window.localStorage.getItem(key);
+            return v !== null ? v : fallback;
+          } catch (_) {
+            return fallback;
+          }
+        },
+        set(key, val) {
+          try {
+            window.localStorage.setItem(key, String(val));
+          } catch (_) {}
+        }
+      };
+
+      function normalizeAngle(a) {
+        while (a > Math.PI) a -= Math.PI * 2;
+        while (a < -Math.PI) a += Math.PI * 2;
+        return a;
+      }
+
+      function angleDiff(from, to) {
+        return normalizeAngle(to - from);
+      }
+
+      function lerp(a, b, t) {
+        return a + (b - a) * t;
+      }
+
+      function clamp(val, min, max) {
+        return Math.max(min, Math.min(max, val));
+      }
+
+      function hexToRgb(hex) {
+        const clean = hex.replace('#', '');
+        const num = parseInt(clean, 16);
+        return {
+          r: (num >> 16) & 255,
+          g: (num >> 8) & 255,
+          b: num & 255
+        };
+      }
+
+      function getSkinSegmentColor(skin, segIndex, totalSegs, timeSec) {
+        const cols = skin.colors;
+        if (skin.pattern === 'rainbow') {
+          const hue = ((segIndex * 11 - timeSec * 140) % 360 + 360) % 360;
+          return `hsl(${hue}, 92%, 56%)`;
+        }
+        if (skin.pattern === 'stripes') {
+          const band = Math.floor(segIndex / 2) % cols.length;
+          return cols[band];
+        }
+        if (skin.pattern === 'gradient') {
+          const cycle = (segIndex * 0.14) % cols.length;
+          const idx0 = Math.floor(cycle) % cols.length;
+          const idx1 = (idx0 + 1) % cols.length;
+          const frac = cycle - Math.floor(cycle);
+          const c0 = hexToRgb(cols[idx0]);
+          const c1 = hexToRgb(cols[idx1]);
+          const r = Math.round(lerp(c0.r, c1.r, frac));
+          const g = Math.round(lerp(c0.g, c1.g, frac));
+          const b = Math.round(lerp(c0.b, c1.b, frac));
+          return `rgb(${r},${g},${b})`;
+        }
+        // 'bands' default
+        return cols[segIndex % cols.length];
+      }
+
+      /* ------------------------------------------------------------------------
+         4. Procedural Web Audio Synthesizer
+         ------------------------------------------------------------------------ */
+      class SoundSystem {
+        constructor() {
+          this.ctx = null;
+          this.muted = Storage.get(STORAGE_KEYS.MUTED, 'false') === 'true';
+          this.boostOsc = null;
+          this.boostGain = null;
+          this.boostFilter = null;
+          this.isBoostHumActive = false;
+          this.popCombo = 0;
+          this.lastPopTime = 0;
+        }
+
+        initContext() {
+          if (this.muted) return null;
+          try {
+            if (!this.ctx) {
+              const AudioCtx = window.AudioContext || window.webkitAudioContext;
+              if (AudioCtx) this.ctx = new AudioCtx();
+            }
+            if (this.ctx && this.ctx.state === 'suspended') {
+              this.ctx.resume();
+            }
+            this.ensureBoostNodes();
+            return this.ctx;
+          } catch (_) {
+            return null;
+          }
+        }
+
+        ensureBoostNodes() {
+          if (!this.ctx || this.boostOsc) return;
+          try {
+            const osc = this.ctx.createOscillator();
+            const filter = this.ctx.createBiquadFilter();
+            const gain = this.ctx.createGain();
+
+            osc.type = 'sawtooth';
+            osc.frequency.value = 68;
+
+            filter.type = 'lowpass';
+            filter.frequency.value = 180;
+            filter.Q.value = 2.5;
+
+            gain.gain.value = 0.0001;
+
+            osc.connect(filter);
+            filter.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start();
+
+            this.boostOsc = osc;
+            this.boostFilter = filter;
+            this.boostGain = gain;
+          } catch (_) {}
+        }
+
+        setBoostHum(active) {
+          if (this.muted || !this.ctx || !this.boostGain) return;
+          if (this.isBoostHumActive === active) return;
+          this.isBoostHumActive = active;
+
+          try {
+            const now = this.ctx.currentTime;
+            this.boostGain.gain.cancelScheduledValues(now);
+            if (active) {
+              this.boostOsc.frequency.setTargetAtTime(84, now, 0.08);
+              this.boostFilter.frequency.setTargetAtTime(240, now, 0.08);
+              this.boostGain.gain.setTargetAtTime(0.045, now, 0.06);
+            } else {
+              this.boostOsc.frequency.setTargetAtTime(62, now, 0.1);
+              this.boostFilter.frequency.setTargetAtTime(140, now, 0.1);
+              this.boostGain.gain.setTargetAtTime(0.0001, now, 0.08);
+            }
+          } catch (_) {}
+        }
+
+        toggleMute() {
+          this.muted = !this.muted;
+          Storage.set(STORAGE_KEYS.MUTED, this.muted);
+          if (this.muted) {
+            if (this.boostGain && this.ctx) {
+              try {
+                this.boostGain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+                this.isBoostHumActive = false;
+              } catch (_) {}
+            }
+          } else {
+            this.initContext();
+            this.playPop(2);
+          }
+          return this.muted;
+        }
+
+        playPop(orbValue = 1.5) {
+          const ctx = this.initContext();
+          if (!ctx) return;
+          try {
+            const now = ctx.currentTime;
+            if (now - this.lastPopTime < 0.28) {
+              this.popCombo = Math.min(14, this.popCombo + 1);
+            } else {
+              this.popCombo = 0;
+            }
+            this.lastPopTime = now;
+
+            const baseFreq = 390 + this.popCombo * 26 + Math.min(180, orbValue * 18);
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(baseFreq, now);
+            osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.48, now + 0.055);
+
+            gain.gain.setValueAtTime(0.065, now);
+            gain.gain.exponentialRampToValueAtTime(0.0008, now + 0.065);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.07);
+          } catch (_) {}
+        }
+
+        playExplosion(distanceFactor = 1) {
+          const ctx = this.initContext();
+          if (!ctx || distanceFactor <= 0.05) return;
+          try {
+            const now = ctx.currentTime;
+            const vol = clamp(distanceFactor, 0.1, 1);
+
+            // 1. Sub-bass drop
+            const sub = ctx.createOscillator();
+            const subGain = ctx.createGain();
+            sub.type = 'triangle';
+            sub.frequency.setValueAtTime(145, now);
+            sub.frequency.exponentialRampToValueAtTime(34, now + 0.42);
+
+            subGain.gain.setValueAtTime(0.18 * vol, now);
+            subGain.gain.exponentialRampToValueAtTime(0.0008, now + 0.45);
+
+            sub.connect(subGain);
+            subGain.connect(ctx.destination);
+            sub.start(now);
+            sub.stop(now + 0.46);
+
+            // 2. Sparkle orb scatter arpeggio
+            [660, 880, 1174, 1568].forEach((freq, idx) => {
+              const osc = ctx.createOscillator();
+              const g = ctx.createGain();
+              const t = now + idx * 0.04;
+              osc.type = 'sine';
+              osc.frequency.setValueAtTime(freq, t);
+              osc.frequency.exponentialRampToValueAtTime(freq * 1.15, t + 0.12);
+
+              g.gain.setValueAtTime(0.05 * vol, t);
+              g.gain.exponentialRampToValueAtTime(0.0008, t + 0.14);
+
+              osc.connect(g);
+              g.connect(ctx.destination);
+              osc.start(t);
+              osc.stop(t + 0.15);
+            });
+          } catch (_) {}
+        }
+      }
+
+      /* ------------------------------------------------------------------------
+         5. Spatial Hash Grid (160px Buckets for O(1) Neighborhood Queries)
+         ------------------------------------------------------------------------ */
+      class SpatialHash {
+        constructor(cellSize) {
+          this.cellSize = cellSize;
+          this.invCell = 1 / cellSize;
+          this.buckets = new Map();
+        }
+
+        clear() {
+          this.buckets.clear();
+        }
+
+        _key(cx, cy) {
+          return ((cx + 512) << 16) | ((cy + 512) & 0xffff);
+        }
+
+        insert(x, y, item) {
+          const cx = Math.floor(x * this.invCell);
+          const cy = Math.floor(y * this.invCell);
+          const key = this._key(cx, cy);
+          let bucket = this.buckets.get(key);
+          if (!bucket) {
+            bucket = [];
+            this.buckets.set(key, bucket);
+          }
+          bucket.push(item);
+        }
+
+        query(x, y, radius, callback) {
+          const minCx = Math.floor((x - radius) * this.invCell);
+          const maxCx = Math.floor((x + radius) * this.invCell);
+          const minCy = Math.floor((y - radius) * this.invCell);
+          const maxCy = Math.floor((y + radius) * this.invCell);
+
+          for (let cy = minCy; cy <= maxCy; cy++) {
+            for (let cx = minCx; cx <= maxCx; cx++) {
+              const bucket = this.buckets.get(this._key(cx, cy));
+              if (!bucket) continue;
+              for (let i = 0; i < bucket.length; i++) {
+                callback(bucket[i]);
+              }
+            }
+          }
+        }
+      }
+
+      /* ------------------------------------------------------------------------
+         6. Snake Entity & Arc-Length Spine Kinematics
+         ------------------------------------------------------------------------ */
+      let nextSnakeId = 1;
+
+      class Snake {
+        constructor({ name, isPlayer, skin, x, y, angle, initialMass }) {
+          this.id = nextSnakeId++;
+          this.name = name;
+          this.isPlayer = isPlayer;
+          this.skin = skin;
+
+          this.x = x;
+          this.y = y;
+          this.angle = angle;
+          this.targetAngle = angle;
+
+          this.mass = initialMass;
+          this.kills = 0;
+          this.alive = true;
+          this.spawnTime = performance.now();
+          this.peakRank = AI_BOT_COUNT + 1;
+
+          this.wantsBoost = false;
+          this.isBoosting = false;
+          this.boostShedTimer = 0;
+          this.boostParticles = [];
+
+          // High-resolution spine trajectory history
+          this.cumDist = 0;
+          this.path = [];
+          this.segments = [];
+
+          this.aiTimer = Math.random() * 0.25;
+          this.aiWanderAngle = angle;
+
+          this._initSpine();
+        }
+
+        getRadius() {
+          // Smoothly scales from 13px at mass 20 up to 34px for giant snakes
+          return Math.min(34, 13 + Math.pow(Math.max(0, this.mass - 20), 0.52) * 0.42);
+        }
+
+        getSegmentSpacing() {
+          return this.getRadius() * 0.46;
+        }
+
+        getTargetSegmentCount() {
+          return Math.min(440, Math.floor(10 + Math.pow(this.mass, 0.72) * 1.35));
+        }
+
+        getBaseSpeed() {
+          const r = this.getRadius();
+          return 198 * (1 - (r - 13) * 0.0045);
+        }
+
+        getTurnRate() {
+          // Agile when small (4.45 rad/s), wider turning circle when huge (2.2 rad/s)
+          const r = this.getRadius();
+          const t = clamp((r - 13) / (34 - 13), 0, 1);
+          return lerp(4.45, 2.2, t);
+        }
+
+        _initSpine() {
+          const count = this.getTargetSegmentCount();
+          const spacing = this.getSegmentSpacing();
+          const backX = -Math.cos(this.angle);
+          const backY = -Math.sin(this.angle);
+
+          this.cumDist = count * spacing;
+          this.path = [];
+          for (let i = 0; i <= count + 2; i++) {
+            const d = i * spacing;
+            this.path.push({
+              x: this.x + backX * d,
+              y: this.y + backY * d,
+              cumDist: this.cumDist - d
+            });
+          }
+          this.updateSpineSegments();
+        }
+
+        /**
+         * Places body segments at exact arc-length intervals along `this.path`
+         * using a single O(N) linear pass for zero bunching or gaps.
+         */
+        updateSpineSegments() {
+          const targetCount = this.getTargetSegmentCount();
+          const spacing = this.getSegmentSpacing();
+
+          this.segments.length = targetCount;
+          this.segments[0] = { x: this.x, y: this.y };
+
+          let pIdx = 0;
+          const pathLen = this.path.length;
+
+          for (let i = 1; i < targetCount; i++) {
+            const targetDist = this.cumDist - i * spacing;
+
+            while (pIdx < pathLen - 2 && this.path[pIdx + 1].cumDist > targetDist) {
+              pIdx++;
+            }
+
+            const p0 = this.path[pIdx];
+            const p1 = this.path[Math.min(pIdx + 1, pathLen - 1)];
+
+            if (!p0 || !p1 || p0 === p1 || p0.cumDist <= p1.cumDist) {
+              this.segments[i] = { x: p0 ? p0.x : this.x, y: p0 ? p0.y : this.y };
+            } else {
+              const span = p0.cumDist - p1.cumDist;
+              const frac = clamp((p0.cumDist - targetDist) / span, 0, 1);
+              this.segments[i] = {
+                x: lerp(p0.x, p1.x, frac),
+                y: lerp(p0.y, p1.y, frac)
+              };
+            }
+          }
+
+          // Prune excess historical path nodes beyond tail
+          const maxKeepDist = (targetCount + 4) * spacing;
+          while (this.path.length > 4 && (this.cumDist - this.path[this.path.length - 2].cumDist) > maxKeepDist) {
+            this.path.pop();
+          }
+        }
+
+        step(dt, spawnPelletFn) {
+          if (!this.alive) return;
+
+          // 1. Smooth Angular Steering
+          const diff = angleDiff(this.angle, this.targetAngle);
+          const maxTurn = this.getTurnRate() * dt;
+          if (Math.abs(diff) <= maxTurn) {
+            this.angle = this.targetAngle;
+          } else {
+            this.angle = normalizeAngle(this.angle + Math.sign(diff) * maxTurn);
+          }
+
+          // 2. Boost State & Mass Shedding
+          this.isBoosting = this.wantsBoost && this.mass > MIN_BOOST_MASS;
+          const speed = this.isBoosting ? this.getBaseSpeed() * 1.85 : this.getBaseSpeed();
+
+          if (this.isBoosting) {
+            const massDrain = 11.5 * dt;
+            this.mass = Math.max(MIN_BOOST_MASS, this.mass - massDrain);
+            this.boostShedTimer += dt;
+
+            if (this.boostShedTimer >= 0.21) {
+              this.boostShedTimer = 0;
+              const tail = this.segments[this.segments.length - 1] || { x: this.x, y: this.y };
+              const jitterX = (Math.random() - 0.5) * 8;
+              const jitterY = (Math.random() - 0.5) * 8;
+              spawnPelletFn({
+                x: tail.x + jitterX,
+                y: tail.y + jitterY,
+                value: 2.3,
+                color: this.skin.colors[Math.floor(Math.random() * this.skin.colors.length)],
+                isFeast: false,
+                phase: Math.random() * Math.PI * 2
+              });
+            }
+          } else {
+            this.boostShedTimer = 0;
+          }
+
+          // 3. Advance Head & Record Spine Path Node
+          const stepDist = speed * dt;
+          this.x += Math.cos(this.angle) * stepDist;
+          this.y += Math.sin(this.angle) * stepDist;
+          this.cumDist += stepDist;
+
+          this.path.unshift({
+            x: this.x,
+            y: this.y,
+            cumDist: this.cumDist
+          });
+
+          // 4. Recompute Exact Arc-Length Segments
+          this.updateSpineSegments();
+        }
+      }
+
+      /* ------------------------------------------------------------------------
+         7. DOM References & Game Engine State
+         ------------------------------------------------------------------------ */
+      const arenaCanvas = document.getElementById('arenaCanvas');
+      const ctx = arenaCanvas.getContext('2d');
+
+      const minimapCanvas = document.getElementById('minimapCanvas');
+      const mmCtx = minimapCanvas.getContext('2d');
+
+      const skinPreviewCanvas = document.getElementById('skinPreviewCanvas');
+      const previewCtx = skinPreviewCanvas.getContext('2d');
+
+      const hudLayer = document.getElementById('hudLayer');
+      const hudLength = document.getElementById('hudLength');
+      const hudRank = document.getElementById('hudRank');
+      const hudKills = document.getElementById('hudKills');
+      const hudBest = document.getElementById('hudBest');
+      const leaderboardList = document.getElementById('leaderboardList');
+
+      const startOverlay = document.getElementById('startOverlay');
+      const gameOverOverlay = document.getElementById('gameOverOverlay');
+      const nicknameInput = document.getElementById('nicknameInput');
+      const prevSkinBtn = document.getElementById('prevSkinBtn');
+      const nextSkinBtn = document.getElementById('nextSkinBtn');
+      const skinNameEl = document.getElementById('skinNameEl');
+      const skinIndexEl = document.getElementById('skinIndexEl');
+      const playBtn = document.getElementById('playBtn');
+      const playAgainBtn = document.getElementById('playAgainBtn');
+      const customizeBtn = document.getElementById('customizeBtn');
+      const muteToggleBtn = document.getElementById('muteToggleBtn');
+      const iconSoundOn = document.getElementById('iconSoundOn');
+      const iconSoundOff = document.getElementById('iconSoundOff');
+      const muteLabel = document.getElementById('muteLabel');
+      const mobileBoostBtn = document.getElementById('mobileBoostBtn');
+
+      const deathReasonEl = document.getElementById('deathReasonEl');
+      const finalLengthEl = document.getElementById('finalLengthEl');
+      const finalKillsEl = document.getElementById('finalKillsEl');
+      const finalPeakRankEl = document.getElementById('finalPeakRankEl');
+      const finalTimeEl = document.getElementById('finalTimeEl');
+
+      const sound = new SoundSystem();
+      const segmentHash = new SpatialHash(HASH_CELL_SIZE);
+      const pelletHash = new SpatialHash(HASH_CELL_SIZE);
+
+      let viewW = window.innerWidth;
+      let viewH = window.innerHeight;
+
+      let selectedSkinIdx = clamp(
+        parseInt(Storage.get(STORAGE_KEYS.SKIN_IDX, '0'), 10) || 0,
+        0,
+        SNAKE_SKINS.length - 1
+      );
+      let bestAllTimeMass = parseInt(Storage.get(STORAGE_KEYS.BEST_MASS, String(PLAYER_START_MASS)), 10) || PLAYER_START_MASS;
+
+      let snakes = [];
+      let playerSnake = null;
+      let pellets = [];
+      let burstParticles = [];
+      let feastHotspots = []; // { x, y, life, maxLife, color }
+      let pendingBotRespawns = []; // timestamps when new bots should spawn
+
+      // Camera State
+      const camera = {
+        x: 0,
+        y: 0,
+        zoom: 1,
+        shakeTime: 0
+      };
+
+      // Input State
+      const input = {
+        pointerActive: false,
+        pointerX: viewW * 0.5,
+        pointerY: viewH * 0.5,
+        keyLeft: false,
+        keyRight: false,
+        keyBoost: false,
+        mouseBoost: false,
+        touchBoost: false
+      };
+
+      let isMenuOpen = true;
+      let lastFrameTime = performance.now();
+      let hudUpdateTimer = 0;
+      let usedBotNames = new Set();
+
+      /* ------------------------------------------------------------------------
+         8. Canvas Sizing & Skin Picker UI
+         ------------------------------------------------------------------------ */
+      function resizeMainCanvas() {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        viewW = window.innerWidth;
+        viewH = window.innerHeight;
+        arenaCanvas.width = Math.round(viewW * dpr);
+        arenaCanvas.height = Math.round(viewH * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+
+      function updateSkinPickerUI() {
+        const skin = SNAKE_SKINS[selectedSkinIdx];
+        skinNameEl.textContent = skin.name;
+        skinIndexEl.textContent = `${selectedSkinIdx + 1} / ${SNAKE_SKINS.length}`;
+        Storage.set(STORAGE_KEYS.SKIN_IDX, selectedSkinIdx);
+      }
+
+      function renderSkinPreview(nowSec) {
+        if (startOverlay.classList.contains('hidden')) return;
+        const w = skinPreviewCanvas.width;
+        const h = skinPreviewCanvas.height;
+        previewCtx.clearRect(0, 0, w, h);
+
+        const skin = SNAKE_SKINS[selectedSkinIdx];
+        const segCount = 26;
+        const spacing = 9.5;
+        const headX = w * 0.72;
+        const headY = h * 0.5 + Math.sin(nowSec * 4.2) * 8;
+
+        const pts = [];
+        for (let i = 0; i < segCount; i++) {
+          const sx = headX - i * spacing;
+          const sy = h * 0.5 + Math.sin(nowSec * 4.2 - i * 0.34) * 11;
+          pts.push({ x: sx, y: sy });
+        }
+
+        // Draw from tail to head
+        for (let i = segCount - 1; i >= 0; i--) {
+          const p = pts[i];
+          const taper = i > segCount - 6 ? lerp(0.55, 1, (segCount - 1 - i) / 5) : 1;
+          const r = (i === 0 ? 13.5 : 12) * taper;
+          const color = getSkinSegmentColor(skin, i, segCount, nowSec);
+
+          previewCtx.save();
+          if (i % 3 === 0) {
+            previewCtx.shadowColor = skin.glow;
+            previewCtx.shadowBlur = 10;
+          }
+          previewCtx.fillStyle = color;
+          previewCtx.beginPath();
+          previewCtx.arc(p.x, p.y, r, 0, Math.PI * 2);
+          previewCtx.fill();
+
+          // Specular highlight
+          previewCtx.fillStyle = 'rgba(255,255,255,0.22)';
+          previewCtx.beginPath();
+          previewCtx.arc(p.x - r * 0.25, p.y - r * 0.28, r * 0.42, 0, Math.PI * 2);
+          previewCtx.fill();
+          previewCtx.restore();
+        }
+
+        // Preview Head Eyes
+        const head = pts[0];
+        const next = pts[1];
+        const ang = Math.atan2(head.y - next.y, head.x - next.x);
+        drawSnakeEyes(previewCtx, head.x, head.y, 13.5, ang, ang, skin.iris);
+      }
+
+      function updateMuteButtonUI() {
+        muteToggleBtn.classList.toggle('muted', sound.muted);
+        iconSoundOn.style.display = sound.muted ? 'none' : 'block';
+        iconSoundOff.style.display = sound.muted ? 'block' : 'none';
+        muteLabel.textContent = sound.muted ? 'Muted' : 'Sound';
+      }
+
+      /* ------------------------------------------------------------------------
+         9. Pellet & World Spawning Helpers
+         ------------------------------------------------------------------------ */
+      const AMBIENT_ORB_COLORS = [
+        '#34d399', '#22d3ee', '#f43f5e', '#fbbf24', '#a855f7',
+        '#38bdf8', '#fb7185', '#a3e635', '#f97316', '#e879f9'
+      ];
+
+      function createAmbientOrb() {
+        const r = Math.sqrt(Math.random()) * (ARENA_RADIUS - 85);
+        const theta = Math.random() * Math.PI * 2;
+        return {
+          x: Math.cos(theta) * r,
+          y: Math.sin(theta) * r,
+          vx: 0,
+          vy: 0,
+          value: 1.2 + Math.random() * 1.9,
+          color: AMBIENT_ORB_COLORS[Math.floor(Math.random() * AMBIENT_ORB_COLORS.length)],
+          isFeast: false,
+          phase: Math.random() * Math.PI * 2
+        };
+      }
+
+      function spawnPellet(pelletObj) {
+        pellets.push({
+          vx: 0,
+          vy: 0,
+          phase: Math.random() * Math.PI * 2,
+          ...pelletObj
+        });
+      }
+
+      function getUniqueBotName() {
+        const available = BOT_NAMES.filter(n => !usedBotNames.has(n));
+        const chosen = available.length > 0
+          ? available[Math.floor(Math.random() * available.length)]
+          : `Bot_${Math.floor(100 + Math.random() * 900)}`;
+        usedBotNames.add(chosen);
+        return chosen;
+      }
+
+      function findSafeSpawnPoint() {
+        for (let attempt = 0; attempt < 25; attempt++) {
+          const r = Math.sqrt(Math.random()) * (ARENA_RADIUS - 420);
+          const theta = Math.random() * Math.PI * 2;
+          const sx = Math.cos(theta) * r;
+          const sy = Math.sin(theta) * r;
+
+          let safe = true;
+          for (let i = 0; i < snakes.length; i++) {
+            const s = snakes[i];
+            if (!s.alive) continue;
+            if (Math.hypot(s.x - sx, s.y - sy) < 260) {
+              safe = false;
+              break;
+            }
+          }
+          if (safe) return { x: sx, y: sy };
+        }
+        return { x: 0, y: 0 };
+      }
+
+      function spawnBotSnake(tier = 'mixed') {
+        const pos = findSafeSpawnPoint();
+        const skin = SNAKE_SKINS[Math.floor(Math.random() * SNAKE_SKINS.length)];
+        let startMass = 24 + Math.random() * 45;
+
+        if (tier === 'veteran') {
+          startMass = 95 + Math.random() * 110;
+        } else if (tier === 'boss') {
+          startMass = 240 + Math.random() * 190;
+        } else {
+          const roll = Math.random();
+          if (roll > 0.88) startMass = 220 + Math.random() * 160;
+          else if (roll > 0.65) startMass = 85 + Math.random() * 95;
+        }
+
+        const bot = new Snake({
+          name: getUniqueBotName(),
+          isPlayer: false,
+          skin,
+          x: pos.x,
+          y: pos.y,
+          angle: Math.random() * Math.PI * 2,
+          initialMass: startMass
+        });
+        snakes.push(bot);
+        return bot;
+      }
+
+      function initArenaWorld() {
+        snakes = [];
+        pellets = [];
+        burstParticles = [];
+        feastHotspots = [];
+        pendingBotRespawns = [];
+        usedBotNames.clear();
+
+        for (let i = 0; i < AMBIENT_ORB_COUNT; i++) {
+          pellets.push(createAmbientOrb());
+        }
+
+        // Spawn 22 AI bots across rookie, veteran, and boss tiers
+        for (let i = 0; i < AI_BOT_COUNT; i++) {
+          if (i < 3) spawnBotSnake('boss');
+          else if (i < 8) spawnBotSnake('veteran');
+          else spawnBotSnake('rookie');
+        }
+      }
+
+      function spawnPlayer() {
+        const rawName = (nicknameInput.value || '').trim();
+        const playerName = rawName.length > 0 ? rawName : 'Player';
+        Storage.set(STORAGE_KEYS.NICKNAME, rawName);
+
+        const pos = findSafeSpawnPoint();
+        const skin = SNAKE_SKINS[selectedSkinIdx];
+
+        playerSnake = new Snake({
+          name: playerName,
+          isPlayer: true,
+          skin,
+          x: pos.x,
+          y: pos.y,
+          angle: Math.atan2(-pos.y, -pos.x), // Face toward center of arena
+          initialMass: PLAYER_START_MASS
+        });
+
+        snakes.push(playerSnake);
+        camera.x = playerSnake.x;
+        camera.y = playerSnake.y;
+        camera.zoom = 1.04;
+      }
+
+      /* ------------------------------------------------------------------------
+         10. Death Conversion into Glittering Orb Feast & Particles
+         ------------------------------------------------------------------------ */
+      function destroySnake(snake, reasonText = 'You collided with another snake.') {
+        if (!snake.alive) return;
+        snake.alive = false;
+
+        if (!snake.isPlayer) {
+          usedBotNames.delete(snake.name);
+          pendingBotRespawns.push(performance.now() + 1400 + Math.random() * 1000);
+        }
+
+        // Convert spine segments into high-value glowing feast orbs
+        const totalFeastMass = Math.max(16, snake.mass * 0.78);
+        const stride = Math.max(1, Math.floor(snake.segments.length / 85));
+        const orbPositions = [];
+
+        for (let i = 0; i < snake.segments.length; i += stride) {
+          orbPositions.push(snake.segments[i]);
+        }
+
+        const perOrbValue = clamp(totalFeastMass / Math.max(1, orbPositions.length), 2.5, 16);
+
+        orbPositions.forEach((seg, idx) => {
+          const scatterAngle = Math.random() * Math.PI * 2;
+          const scatterSpeed = 18 + Math.random() * 48;
+          const color = getSkinSegmentColor(snake.skin, idx * stride, snake.segments.length, 0);
+
+          spawnPellet({
+            x: clamp(seg.x + (Math.random() - 0.5) * 14, -ARENA_RADIUS + 40, ARENA_RADIUS - 40),
+            y: clamp(seg.y + (Math.random() - 0.5) * 14, -ARENA_RADIUS + 40, ARENA_RADIUS - 40),
+            vx: Math.cos(scatterAngle) * scatterSpeed,
+            vy: Math.sin(scatterAngle) * scatterSpeed,
+            value: perOrbValue,
+            color,
+            isFeast: true,
+            phase: Math.random() * Math.PI * 2
+          });
+        });
+
+        // Add minimap feast hotspot if it was a sizeable snake
+        if (snake.mass >= 45) {
+          feastHotspots.push({
+            x: snake.x,
+            y: snake.y,
+            life: 14,
+            maxLife: 14,
+            color: snake.skin.colors[0]
+          });
+        }
+
+        // Spawn burst spark particles along the body
+        const particleStride = Math.max(1, Math.floor(snake.segments.length / 32));
+        for (let i = 0; i < snake.segments.length; i += particleStride) {
+          const seg = snake.segments[i];
+          const color = getSkinSegmentColor(snake.skin, i, snake.segments.length, 0);
+          for (let k = 0; k < 2; k++) {
+            const a = Math.random() * Math.PI * 2;
+            const spd = 60 + Math.random() * 190;
+            burstParticles.push({
+              x: seg.x,
+              y: seg.y,
+              vx: Math.cos(a) * spd,
+              vy: Math.sin(a) * spd,
+              radius: 2.5 + Math.random() * 3.5,
+              color,
+              alpha: 1,
+              decay: 1.4 + Math.random() * 0.9
+            });
+          }
+        }
+
+        // Distance-attenuated explosion sound
+        const distToCam = Math.hypot(snake.x - camera.x, snake.y - camera.y);
+        const distFactor = snake.isPlayer ? 1 : clamp(1 - distToCam / 1400, 0, 0.85);
+        sound.playExplosion(distFactor);
+
+        // Handle Player Death Modal
+        if (snake.isPlayer) {
+          sound.setBoostHum(false);
+          camera.shakeTime = 0.35;
+
+          const finalMass = Math.floor(snake.mass);
+          if (finalMass > bestAllTimeMass) {
+            bestAllTimeMass = finalMass;
+            Storage.set(STORAGE_KEYS.BEST_MASS, bestAllTimeMass);
+          }
+
+          const survivedSec = Math.max(1, Math.floor((performance.now() - snake.spawnTime) / 1000));
+          const mins = Math.floor(survivedSec / 60);
+          const secs = String(survivedSec % 60).padStart(2, '0');
+
+          deathReasonEl.textContent = reasonText;
+          finalLengthEl.textContent = finalMass;
+          finalKillsEl.textContent = snake.kills;
+          finalPeakRankEl.textContent = `#${snake.peakRank}`;
+          finalTimeEl.textContent = `${mins}:${secs}`;
+
+          setTimeout(() => {
+            hudLayer.classList.add('hidden');
+            gameOverOverlay.classList.remove('hidden');
+            isMenuOpen = true;
+          }, 550);
+        }
+      }
+
+      /* ------------------------------------------------------------------------
+         11. Smart AI Bot Controller (7-Whisker Avoidance + Feast Seeking)
+         ------------------------------------------------------------------------ */
+      function updateBotAI(bot, dt) {
+        bot.aiTimer -= dt;
+        if (bot.aiTimer > 0) return;
+        bot.aiTimer = 0.08 + Math.random() * 0.05; // ~10Hz tactical decision updates
+
+        const radius = bot.getRadius();
+        const lookAhead = clamp(150 + radius * 5.5, 160, 340);
+
+        // 1. Check 7 whisker feeler rays for obstacle clearance
+        const whiskerOffsets = [-1.3, -0.82, -0.38, 0, 0.38, 0.82, 1.3];
+        let bestScore = -Infinity;
+        let chosenAngle = bot.angle;
+        let centerDanger = 0;
+
+        for (let w = 0; w < whiskerOffsets.length; w++) {
+          const testAngle = normalizeAngle(bot.angle + whiskerOffsets[w]);
+          const dirX = Math.cos(testAngle);
+          const dirY = Math.sin(testAngle);
+
+          // Sample at 2 distances along the ray
+          let rayPenalty = 0;
+          [0.52, 1.0].forEach(mult => {
+            const px = bot.x + dirX * lookAhead * mult;
+            const py = bot.y + dirY * lookAhead * mult;
+
+            // Boundary wall repulsion
+            const distFromCenter = Math.hypot(px, py);
+            if (distFromCenter > ARENA_RADIUS - 140) {
+              rayPenalty += (distFromCenter - (ARENA_RADIUS - 140)) * 8.5;
+            }
+
+            // Query enemy snake segments near probe point
+            segmentHash.query(px, py, radius + 58, seg => {
+              if (seg.snakeId === bot.id) return;
+              const d = Math.hypot(seg.x - px, seg.y - py);
+              const safeDist = radius + seg.radius + 44;
+              if (d < safeDist) {
+                rayPenalty += ((safeDist - d) / safeDist) * (mult === 0.52 ? 420 : 210);
+              }
+            });
+          });
+
+          if (whiskerOffsets[w] === 0) {
+            centerDanger = rayPenalty;
+          }
+
+          // Slight preference for continuing smoothly forward
+          let rayScore = -rayPenalty - Math.abs(whiskerOffsets[w]) * 14;
+
+          // 2. Orb & High-Value Death Feast Attraction along this direction
+          let orbReward = 0;
+          pelletHash.query(bot.x + dirX * 160, bot.y + dirY * 160, 210, p => {
+            const dx = p.x - bot.x;
+            const dy = p.y - bot.y;
+            const dist = Math.hypot(dx, dy);
+            if (dist < 10 || dist > 360) return;
+
+            const toPelletAngle = Math.atan2(dy, dx);
+            const align = Math.cos(angleDiff(testAngle, toPelletAngle));
+            if (align > 0.65) {
+              const weight = p.isFeast ? p.value * 26 : p.value * 7;
+              orbReward += (weight * align) / (1 + dist * 0.015);
+            }
+          });
+
+          rayScore += orbReward;
+
+          if (rayScore > bestScore) {
+            bestScore = rayScore;
+            chosenAngle = testAngle;
+          }
+        }
+
+        // Gentle organic wander when area is completely open
+        if (centerDanger < 10 && Math.random() < 0.22) {
+          bot.aiWanderAngle = normalizeAngle(chosenAngle + (Math.random() - 0.5) * 0.55);
+          bot.targetAngle = bot.aiWanderAngle;
+        } else {
+          bot.targetAngle = chosenAngle;
+        }
+
+        // 3. Opportunistic Boosting (escape close danger or dash toward feast orbs)
+        const nearWall = Math.hypot(bot.x, bot.y) > ARENA_RADIUS - 260;
+        let feastNearby = false;
+        if (bot.mass > 42 && !nearWall) {
+          pelletHash.query(bot.x, bot.y, 190, p => {
+            if (p.isFeast && p.value >= 4) feastNearby = true;
+          });
+        }
+
+        bot.wantsBoost = (
+          bot.mass > 32 &&
+          ((centerDanger > 140 && centerDanger < 340) || (feastNearby && Math.random() < 0.45))
+        );
+      }
+
+      /* ------------------------------------------------------------------------
+         12. Simulation Step (Spatial Hash, Collisions, Magnetism, Respawns)
+         ------------------------------------------------------------------------ */
+      function stepSimulation(dt) {
+        const now = performance.now();
+
+        // Respawn queued AI bots
+        for (let i = pendingBotRespawns.length - 1; i >= 0; i--) {
+          if (now >= pendingBotRespawns[i]) {
+            pendingBotRespawns.splice(i, 1);
+            spawnBotSnake('mixed');
+          }
+        }
+
+        // Replenish ambient orbs if below count
+        while (pellets.length < AMBIENT_ORB_COUNT) {
+          pellets.push(createAmbientOrb());
+        }
+
+        // Player Steering & Boost Input
+        if (playerSnake && playerSnake.alive && !isMenuOpen) {
+          if (input.keyLeft || input.keyRight) {
+            const dir = (input.keyRight ? 1 : 0) - (input.keyLeft ? 1 : 0);
+            playerSnake.targetAngle = normalizeAngle(
+              playerSnake.angle + dir * playerSnake.getTurnRate() * 1.15 * dt
+            );
+          } else if (input.pointerActive) {
+            const worldMouseX = camera.x + (input.pointerX - viewW * 0.5) / camera.zoom;
+            const worldMouseY = camera.y + (input.pointerY - viewH * 0.5) / camera.zoom;
+            playerSnake.targetAngle = Math.atan2(
+              worldMouseY - playerSnake.y,
+              worldMouseX - playerSnake.x
+            );
+          }
+
+          playerSnake.wantsBoost = input.keyBoost || input.mouseBoost || input.touchBoost;
+          sound.setBoostHum(playerSnake.wantsBoost && playerSnake.mass > MIN_BOOST_MASS);
+        } else {
+          sound.setBoostHum(false);
+        }
+
+        // Rebuild Spatial Hashes
+        segmentHash.clear();
+        pelletHash.clear();
+
+        for (let i = 0; i < snakes.length; i++) {
+          const s = snakes[i];
+          if (!s.alive) continue;
+          const r = s.getRadius();
+          // Sample every segment for exact collision accuracy
+          for (let j = 0; j < s.segments.length; j++) {
+            const seg = s.segments[j];
+            segmentHash.insert(seg.x, seg.y, {
+              snakeId: s.id,
+              snakeRef: s,
+              segIndex: j,
+              x: seg.x,
+              y: seg.y,
+              radius: r * (j > s.segments.length - 6 ? 0.72 : 0.94)
+            });
+          }
+        }
+
+        for (let i = 0; i < pellets.length; i++) {
+          const p = pellets[i];
+          // Apply slight scatter damping for death-feast orbs
+          if (Math.abs(p.vx) > 0.1 || Math.abs(p.vy) > 0.1) {
+            p.x += p.vx * dt;
+            p.y += p.vy * dt;
+            p.vx *= Math.pow(0.06, dt);
+            p.vy *= Math.pow(0.06, dt);
+          }
+          pelletHash.insert(p.x, p.y, p);
+        }
+
+        // Update AI & Advance All Snakes
+        for (let i = 0; i < snakes.length; i++) {
+          const s = snakes[i];
+          if (!s.alive) continue;
+          if (!s.isPlayer) {
+            updateBotAI(s, dt);
+          }
+          s.step(dt, spawnPellet);
+        }
+
+        // Pellet Mouth Magnetism & Absorption
+        const consumedPellets = new Set();
+        for (let i = 0; i < snakes.length; i++) {
+          const s = snakes[i];
+          if (!s.alive) continue;
+
+          const headR = s.getRadius();
+          const magnetR = headR * MAGNET_RADIUS_FACTOR;
+          const eatR = headR * 0.92;
+
+          pelletHash.query(s.x, s.y, magnetR + 20, p => {
+            if (consumedPellets.has(p)) return;
+            const dx = s.x - p.x;
+            const dy = s.y - p.y;
+            const dist = Math.hypot(dx, dy);
+
+            if (dist <= eatR) {
+              consumedPellets.add(p);
+              s.mass += p.value;
+
+              if (s.isPlayer) {
+                sound.playPop(p.value);
+                if (s.mass > bestAllTimeMass) {
+                  bestAllTimeMass = Math.floor(s.mass);
+                  Storage.set(STORAGE_KEYS.BEST_MASS, bestAllTimeMass);
+                }
+              }
+            } else if (dist < magnetR && dist > 0.01) {
+              // Smoothly curve & accelerate pellet into snake's mouth
+              const pull = (1 - dist / magnetR) * 440 * dt;
+              p.x += (dx / dist) * pull;
+              p.y += (dy / dist) * pull;
+            }
+          });
+        }
+
+        if (consumedPellets.size > 0) {
+          pellets = pellets.filter(p => !consumedPellets.has(p));
+        }
+
+        // Boundary & Snake-to-Snake Collisions
+        const pendingDestructions = [];
+
+        for (let i = 0; i < snakes.length; i++) {
+          const s = snakes[i];
+          if (!s.alive) continue;
+
+          const headR = s.getRadius();
+          const hitR = headR * HEAD_HITBOX_FACTOR;
+
+          // 1. Crimson Outer Arena Boundary Check
+          const distFromOrigin = Math.hypot(s.x, s.y);
+          if (distFromOrigin >= ARENA_RADIUS - headR * 0.65) {
+            pendingDestructions.push({
+              snake: s,
+              killer: null,
+              reason: 'You crossed the crimson hazard boundary!'
+            });
+            continue;
+          }
+
+          // 2. Other Snake Segments & Head-to-Head Collisions
+          let hitRecord = null;
+          segmentHash.query(s.x, s.y, hitR + 36, seg => {
+            if (hitRecord || seg.snakeId === s.id || !seg.snakeRef.alive) return;
+
+            const d = Math.hypot(seg.x - s.x, seg.y - s.y);
+            if (d < hitR + seg.radius * 0.88) {
+              // Head-to-head check (segIndex === 0)
+              if (seg.segIndex === 0) {
+                if (s.mass <= seg.snakeRef.mass) {
+                  hitRecord = {
+                    snake: s,
+                    killer: seg.snakeRef,
+                    reason: `Head-on collision with ${seg.snakeRef.name}!`
+                  };
+                }
+              } else {
+                hitRecord = {
+                  snake: s,
+                  killer: seg.snakeRef,
+                  reason: `You crashed into ${seg.snakeRef.name}'s body!`
+                };
+              }
+            }
+          });
+
+          if (hitRecord) {
+            pendingDestructions.push(hitRecord);
+          }
+        }
+
+        // Execute Deaths & Credit Kills
+        for (let i = 0; i < pendingDestructions.length; i++) {
+          const { snake, killer, reason } = pendingDestructions[i];
+          if (!snake.alive) continue;
+          if (killer && killer.alive) {
+            killer.kills += 1;
+          }
+          destroySnake(snake, reason);
+        }
+
+        // Remove dead snakes from active array
+        snakes = snakes.filter(s => s.alive);
+
+        // Update Burst Particles & Minimap Feast Hotspots
+        for (let i = burstParticles.length - 1; i >= 0; i--) {
+          const bp = burstParticles[i];
+          bp.x += bp.vx * dt;
+          bp.y += bp.vy * dt;
+          bp.vx *= Math.pow(0.08, dt);
+          bp.vy *= Math.pow(0.08, dt);
+          bp.alpha -= bp.decay * dt;
+          if (bp.alpha <= 0) burstParticles.splice(i, 1);
+        }
+
+        for (let i = feastHotspots.length - 1; i >= 0; i--) {
+          feastHotspots[i].life -= dt;
+          if (feastHotspots[i].life <= 0) feastHotspots.splice(i, 1);
+        }
+
+        // Smooth Dynamic Camera Follow & Zoom
+        if (camera.shakeTime > 0) {
+          camera.shakeTime = Math.max(0, camera.shakeTime - dt);
+        }
+
+        if (playerSnake && playerSnake.alive) {
+          const lerpFactor = 1 - Math.pow(0.0008, dt);
+          camera.x = lerp(camera.x, playerSnake.x, lerpFactor);
+          camera.y = lerp(camera.y, playerSnake.y, lerpFactor);
+
+          const r = playerSnake.getRadius();
+          const targetZoom = clamp(1.06 - (r - 13) * 0.024, 0.52, 1.06);
+          camera.zoom = lerp(camera.zoom, targetZoom, 1 - Math.pow(0.04, dt));
+        } else if (snakes.length > 0) {
+          // Spectate top alive snake seamlessly behind Start / Game Over overlay
+          let leader = snakes[0];
+          for (let i = 1; i < snakes.length; i++) {
+            if (snakes[i].mass > leader.mass) leader = snakes[i];
+          }
+          const lerpFactor = 1 - Math.pow(0.002, dt);
+          camera.x = lerp(camera.x, leader.x, lerpFactor);
+          camera.y = lerp(camera.y, leader.y, lerpFactor);
+          camera.zoom = lerp(camera.zoom, 0.72, 1 - Math.pow(0.05, dt));
+        }
+      }
+
+      /* ------------------------------------------------------------------------
+         13. High-Craft 60FPS World, Snake, Minimap & Leaderboard Renderer
+         ------------------------------------------------------------------------ */
+      function drawSnakeEyes(targetCtx, hx, hy, radius, bodyAngle, lookAngle, irisColor) {
+        const perpX = -Math.sin(bodyAngle);
+        const perpY = Math.cos(bodyAngle);
+        const fwdX = Math.cos(bodyAngle);
+        const fwdY = Math.sin(bodyAngle);
+
+        const fwdDist = radius * 0.34;
+        const sideDist = radius * 0.46;
+        const eyeR = radius * 0.32;
+        const pupilR = eyeR * 0.56;
+
+        const pupilShiftX = Math.cos(lookAngle) * (eyeR * 0.28);
+        const pupilShiftY = Math.sin(lookAngle) * (eyeR * 0.28);
+
+        [-1, 1].forEach(side => {
+          const ex = hx + fwdX * fwdDist + perpX * sideDist * side;
+          const ey = hy + fwdY * fwdDist + perpY * sideDist * side;
+
+          // White sclera
+          targetCtx.fillStyle = '#ffffff';
+          targetCtx.beginPath();
+          targetCtx.arc(ex, ey, eyeR, 0, Math.PI * 2);
+          targetCtx.fill();
+
+          // Colored iris accent
+          targetCtx.fillStyle = irisColor;
+          targetCtx.beginPath();
+          targetCtx.arc(ex + pupilShiftX * 0.65, ey + pupilShiftY * 0.65, eyeR * 0.72, 0, Math.PI * 2);
+          targetCtx.fill();
+
+          // Dark pupil
+          targetCtx.fillStyle = '#090d16';
+          targetCtx.beginPath();
+          targetCtx.arc(ex + pupilShiftX, ey + pupilShiftY, pupilR, 0, Math.PI * 2);
+          targetCtx.fill();
+
+          // Crisp eye glint
+          targetCtx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+          targetCtx.beginPath();
+          targetCtx.arc(ex + pupilShiftX - pupilR * 0.3, ey + pupilShiftY - pupilR * 0.3, pupilR * 0.32, 0, Math.PI * 2);
+          targetCtx.fill();
+        });
+      }
+
+      function renderArena(nowMs) {
+        const nowSec = nowMs * 0.001;
+
+        ctx.save();
+        ctx.fillStyle = '#0e121a';
+        ctx.fillRect(0, 0, viewW, viewH);
+
+        // Apply Camera Transform
+        let shakeX = 0;
+        let shakeY = 0;
+        if (camera.shakeTime > 0) {
+          const mag = (camera.shakeTime / 0.35) * 9;
+          shakeX = (Math.random() - 0.5) * mag * 2;
+          shakeY = (Math.random() - 0.5) * mag * 2;
+        }
+
+        ctx.translate(viewW * 0.5 + shakeX, viewH * 0.5 + shakeY);
+        ctx.scale(camera.zoom, camera.zoom);
+        ctx.translate(-camera.x, -camera.y);
+
+        // Visible World Frustum Bounds
+        const halfW = (viewW * 0.5) / camera.zoom + 120;
+        const halfH = (viewH * 0.5) / camera.zoom + 120;
+        const minX = camera.x - halfW;
+        const maxX = camera.x + halfW;
+        const minY = camera.y - halfH;
+        const maxY = camera.y + halfH;
+
+        // 1. Subtle Hexagonal & Grid Slate Background (Frustum-Culled)
+        const gridStep = 90;
+        const startGx = Math.floor(minX / gridStep) * gridStep;
+        const startGy = Math.floor(minY / gridStep) * gridStep;
+
+        ctx.strokeStyle = '#19202e';
+        ctx.lineWidth = 1.25;
+        ctx.beginPath();
+        for (let gx = startGx; gx <= maxX; gx += gridStep) {
+          ctx.moveTo(gx, minY);
+          ctx.lineTo(gx, maxY);
+        }
+        for (let gy = startGy; gy <= maxY; gy += gridStep) {
+          ctx.moveTo(minX, gy);
+          ctx.lineTo(maxX, gy);
+        }
+        ctx.stroke();
+
+        // Hexagonal accent dots at grid intersections
+        ctx.fillStyle = 'rgba(148, 163, 184, 0.08)';
+        for (let gx = startGx; gx <= maxX; gx += gridStep * 2) {
+          for (let gy = startGy; gy <= maxY; gy += gridStep * 2) {
+            ctx.beginPath();
+            ctx.arc(gx, gy, 2.2, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+
+        // 2. Outer Crimson Danger Zone Shading & Pulsing Hazard Ring
+        const pulse = 0.5 + 0.5 * Math.sin(nowSec * 3.4);
+
+        // Dark crimson tint outside the circular boundary
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(minX - 400, minY - 400, (maxX - minX) + 800, (maxY - minY) + 800);
+        ctx.arc(0, 0, ARENA_RADIUS, 0, Math.PI * 2, true);
+        ctx.fillStyle = 'rgba(255, 42, 85, 0.14)';
+        ctx.fill();
+        ctx.restore();
+
+        // Glowing crimson ring
+        ctx.save();
+        ctx.strokeStyle = '#ff2a55';
+        ctx.lineWidth = 10 + pulse * 4;
+        ctx.shadowColor = 'rgba(255, 42, 85, 0.85)';
+        ctx.shadowBlur = 26 + pulse * 14;
+        ctx.beginPath();
+        ctx.arc(0, 0, ARENA_RADIUS, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+
+        // 3. Render Ambient & Death-Feast Orbs (Frustum-Culled)
+        for (let i = 0; i < pellets.length; i++) {
+          const p = pellets[i];
+          const bobX = Math.cos(nowSec * 1.8 + p.phase) * 2.5;
+          const bobY = Math.sin(nowSec * 2.2 + p.phase) * 2.5;
+          const px = p.x + bobX;
+          const py = p.y + bobY;
+
+          if (px < minX || px > maxX || py < minY || py > maxY) continue;
+
+          const orbPulse = 0.88 + 0.16 * Math.sin(nowSec * (p.isFeast ? 6.5 : 3.2) + p.phase);
+          const baseRadius = (p.isFeast ? clamp(6.5 + p.value * 0.72, 7.5, 16) : clamp(3.6 + p.value * 1.35, 4.2, 8.2)) * orbPulse;
+
+          // Outer soft glow
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = p.isFeast ? 0.34 : 0.22;
+          ctx.beginPath();
+          ctx.arc(px, py, baseRadius * (p.isFeast ? 2.15 : 1.85), 0, Math.PI * 2);
+          ctx.fill();
+
+          // Core orb
+          ctx.globalAlpha = 0.96;
+          ctx.beginPath();
+          ctx.arc(px, py, baseRadius, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Bright white center glint
+          ctx.fillStyle = '#ffffff';
+          ctx.globalAlpha = p.isFeast ? 0.85 : 0.65;
+          ctx.beginPath();
+          ctx.arc(px - baseRadius * 0.25, py - baseRadius * 0.25, baseRadius * 0.36, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+
+        // 4. Render All Snakes (Sorted smallest-to-largest so bigger snakes layer on top)
+        const sortedSnakes = snakes.slice().sort((a, b) => a.mass - b.mass);
+
+        for (let sIdx = 0; sIdx < sortedSnakes.length; sIdx++) {
+          const s = sortedSnakes[sIdx];
+          if (!s.alive) continue;
+
+          const baseR = s.getRadius();
+          const segs = s.segments;
+          const total = segs.length;
+
+          // Quick bounding-box frustum check
+          const maxReach = total * s.getSegmentSpacing() + baseR * 2;
+          if (
+            s.x + maxReach < minX || s.x - maxReach > maxX ||
+            s.y + maxReach < minY || s.y - maxReach > maxY
+          ) {
+            continue;
+          }
+
+          // Neon outer boost aura along spine
+          if (s.isBoosting) {
+            ctx.save();
+            ctx.strokeStyle = s.skin.glow;
+            ctx.lineWidth = baseR * 2.55;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.beginPath();
+            for (let i = total - 1; i >= 0; i -= 2) {
+              const pt = segs[i];
+              if (i === total - 1) ctx.moveTo(pt.x, pt.y);
+              else ctx.lineTo(pt.x, pt.y);
+            }
+            ctx.stroke();
+            ctx.restore();
+          }
+
+          // Draw body segments from tail to head
+          for (let i = total - 1; i >= 0; i--) {
+            const pt = segs[i];
+            if (pt.x < minX - baseR || pt.x > maxX + baseR || pt.y < minY - baseR || pt.y > maxY + baseR) {
+              continue;
+            }
+
+            // Smooth tail taper on final 7 segments
+            const tailIdx = total - 1 - i;
+            const taper = tailIdx < 7 ? lerp(0.48, 1.0, tailIdx / 7) : 1.0;
+            const r = (i === 0 ? baseR * 1.05 : baseR) * taper;
+
+            const segColor = getSkinSegmentColor(s.skin, i, total, nowSec);
+
+            // Base segment circle
+            ctx.fillStyle = segColor;
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, r, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Subtle dark rim for 3D depth between overlapping scales
+            ctx.strokeStyle = 'rgba(8, 12, 20, 0.28)';
+            ctx.lineWidth = Math.max(1, r * 0.08);
+            ctx.stroke();
+
+            // Specular highlight on upper-left quadrant
+            ctx.fillStyle = s.isBoosting ? 'rgba(255, 255, 255, 0.34)' : 'rgba(255, 255, 255, 0.16)';
+            ctx.beginPath();
+            ctx.arc(pt.x - r * 0.26, pt.y - r * 0.28, r * 0.42, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          // Expressive Eyes on Head
+          drawSnakeEyes(ctx, s.x, s.y, baseR * 1.05, s.angle, s.targetAngle, s.skin.iris);
+
+          // Floating Nickname Label above Snake Head
+          if (!s.isPlayer) {
+            ctx.save();
+            ctx.font = `700 ${Math.max(12, Math.round(13 / Math.sqrt(camera.zoom)))}px "Inter", sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.fillStyle = 'rgba(248, 250, 252, 0.82)';
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+            ctx.shadowBlur = 4;
+            ctx.fillText(s.name, s.x, s.y - baseR - 10);
+            ctx.restore();
+          }
+        }
+
+        // 5. Explosion Burst Particles
+        for (let i = 0; i < burstParticles.length; i++) {
+          const bp = burstParticles[i];
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, bp.alpha);
+          ctx.fillStyle = bp.color;
+          ctx.beginPath();
+          ctx.arc(bp.x, bp.y, bp.radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        ctx.restore();
+
+        // 6. Screen-Edge Crimson Danger Vignette when player is near boundary
+        if (playerSnake && playerSnake.alive && !isMenuOpen) {
+          const distEdge = ARENA_RADIUS - Math.hypot(playerSnake.x, playerSnake.y);
+          if (distEdge < 260) {
+            const warnAlpha = clamp((1 - distEdge / 260) * 0.35, 0, 0.35);
+            const grad = ctx.createRadialGradient(
+              viewW * 0.5, viewH * 0.5, Math.min(viewW, viewH) * 0.32,
+              viewW * 0.5, viewH * 0.5, Math.max(viewW, viewH) * 0.68
+            );
+            grad.addColorStop(0, 'rgba(255, 42, 85, 0)');
+            grad.addColorStop(1, `rgba(255, 42, 85, ${warnAlpha})`);
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, viewW, viewH);
+          }
+        }
+      }
+
+      /* ------------------------------------------------------------------------
+         14. Live Circular Minimap & Top-10 Leaderboard Updates
+         ------------------------------------------------------------------------ */
+      function renderMinimap(nowMs) {
+        const size = minimapCanvas.width;
+        const half = size * 0.5;
+        const radarR = half - 10;
+        const scale = radarR / ARENA_RADIUS;
+
+        mmCtx.clearRect(0, 0, size, size);
+
+        // Radar concentric rings & crosshairs
+        mmCtx.strokeStyle = 'rgba(148, 163, 184, 0.14)';
+        mmCtx.lineWidth = 1.5;
+        [0.33, 0.66, 1.0].forEach(frac => {
+          mmCtx.beginPath();
+          mmCtx.arc(half, half, radarR * frac, 0, Math.PI * 2);
+          mmCtx.stroke();
+        });
+
+        mmCtx.beginPath();
+        mmCtx.moveTo(half - radarR, half);
+        mmCtx.lineTo(half + radarR, half);
+        mmCtx.moveTo(half, half - radarR);
+        mmCtx.lineTo(half, half + radarR);
+        mmCtx.stroke();
+
+        // Glowing Feast Hotspots (Dead Giant Orb Trails)
+        const pulse = 0.6 + 0.4 * Math.sin(nowMs * 0.008);
+        for (let i = 0; i < feastHotspots.length; i++) {
+          const hs = feastHotspots[i];
+          const hx = half + hs.x * scale;
+          const hy = half + hs.y * scale;
+          const alpha = clamp(hs.life / hs.maxLife, 0, 1);
+
+          mmCtx.save();
+          mmCtx.globalAlpha = alpha * 0.85;
+          mmCtx.fillStyle = '#fbbf24';
+          mmCtx.shadowColor = '#fbbf24';
+          mmCtx.shadowBlur = 10;
+          mmCtx.beginPath();
+          mmCtx.arc(hx, hy, 4.5 + pulse * 2.5, 0, Math.PI * 2);
+          mmCtx.fill();
+          mmCtx.restore();
+        }
+
+        // All AI Snakes on Radar
+        for (let i = 0; i < snakes.length; i++) {
+          const s = snakes[i];
+          if (!s.alive || s.isPlayer) continue;
+          const sx = half + s.x * scale;
+          const sy = half + s.y * scale;
+          const dotR = clamp(2.4 + s.mass * 0.006, 2.5, 5.5);
+
+          mmCtx.fillStyle = s.skin.colors[0];
+          mmCtx.beginPath();
+          mmCtx.arc(sx, sy, dotR, 0, Math.PI * 2);
+          mmCtx.fill();
+        }
+
+        // Player Beacon Dot
+        if (playerSnake && playerSnake.alive) {
+          const px = half + playerSnake.x * scale;
+          const py = half + playerSnake.y * scale;
+
+          mmCtx.save();
+          mmCtx.fillStyle = '#ffffff';
+          mmCtx.shadowColor = '#34d399';
+          mmCtx.shadowBlur = 12;
+          mmCtx.beginPath();
+          mmCtx.arc(px, py, 5.2 + pulse * 1.4, 0, Math.PI * 2);
+          mmCtx.fill();
+          mmCtx.restore();
+        }
+      }
+
+      function updateHUDAndLeaderboard() {
+        const sorted = snakes.filter(s => s.alive).sort((a, b) => b.mass - a.mass);
+        const totalAlive = sorted.length;
+
+        if (playerSnake && playerSnake.alive) {
+          const rankIdx = sorted.findIndex(s => s.id === playerSnake.id);
+          const rank = rankIdx !== -1 ? rankIdx + 1 : totalAlive;
+          if (rank < playerSnake.peakRank) {
+            playerSnake.peakRank = rank;
+          }
+
+          hudLength.textContent = Math.floor(playerSnake.mass);
+          hudRank.textContent = `#${rank} / ${totalAlive}`;
+          hudKills.textContent = playerSnake.kills;
+          hudBest.textContent = bestAllTimeMass;
+        }
+
+        // Top 10 Leaderboard DOM
+        const top10 = sorted.slice(0, 10);
+        leaderboardList.innerHTML = '';
+
+        top10.forEach((s, idx) => {
+          const li = document.createElement('li');
+          li.className = `lb-item${s.isPlayer ? ' is-player' : ''}`;
+          li.innerHTML = `
+            <span class="lb-left">
+              <span class="lb-rank">#${idx + 1}</span>
+              <span class="lb-swatch" style="background:${s.skin.colors[0]};"></span>
+              <span class="lb-name">${escapeHtml(s.name)}</span>
+            </span>
+            <span class="lb-score">${Math.floor(s.mass)}</span>
+          `;
+          leaderboardList.appendChild(li);
+        });
+      }
+
+      function escapeHtml(str) {
+        return str.replace(/[&<>"']/g, ch => ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;'
+        }[ch]));
+      }
+
+      /* ------------------------------------------------------------------------
+         15. Main 60FPS Animation Loop
+         ------------------------------------------------------------------------ */
+      function mainLoop(now) {
+        const dt = Math.min((now - lastFrameTime) * 0.001, 0.05);
+        lastFrameTime = now;
+
+        stepSimulation(dt);
+        renderArena(now);
+
+        if (!isMenuOpen) {
+          renderMinimap(now);
+          hudUpdateTimer += dt;
+          if (hudUpdateTimer >= 0.14) {
+            hudUpdateTimer = 0;
+            updateHUDAndLeaderboard();
+          }
+        } else {
+          renderSkinPreview(now * 0.001);
+        }
+
+        requestAnimationFrame(mainLoop);
+      }
+
+      /* ------------------------------------------------------------------------
+         16. Event Listeners (Mouse, Keyboard, Touch, UI Buttons)
+         ------------------------------------------------------------------------ */
+      function startGameFromMenu() {
+        sound.initContext();
+        startOverlay.classList.add('hidden');
+        gameOverOverlay.classList.add('hidden');
+        hudLayer.classList.remove('hidden');
+        isMenuOpen = false;
+
+        spawnPlayer();
+        updateHUDAndLeaderboard();
+      }
+
+      function openStartCustomization() {
+        gameOverOverlay.classList.add('hidden');
+        startOverlay.classList.remove('hidden');
+        hudLayer.classList.add('hidden');
+        isMenuOpen = true;
+      }
+
+      // Mouse Steering & Left-Click Boost
+      window.addEventListener('mousemove', e => {
+        input.pointerActive = true;
+        input.pointerX = e.clientX;
+        input.pointerY = e.clientY;
+      });
+
+      arenaCanvas.addEventListener('mousedown', e => {
+        if (e.button === 0 && !isMenuOpen) {
+          sound.initContext();
+          input.mouseBoost = true;
+          input.pointerActive = true;
+          input.pointerX = e.clientX;
+          input.pointerY = e.clientY;
+        }
+      });
+
+      window.addEventListener('mouseup', e => {
+        if (e.button === 0) {
+          input.mouseBoost = false;
+        }
+      });
+
+      // Touch Steering on Main Arena Canvas
+      arenaCanvas.addEventListener('touchstart', e => {
+        if (isMenuOpen) return;
+        sound.initContext();
+        if (e.touches.length > 0) {
+          input.pointerActive = true;
+          input.pointerX = e.touches[0].clientX;
+          input.pointerY = e.touches[0].clientY;
+        }
+      }, { passive: true });
+
+      arenaCanvas.addEventListener('touchmove', e => {
+        if (isMenuOpen) return;
+        if (e.touches.length > 0) {
+          input.pointerActive = true;
+          input.pointerX = e.touches[0].clientX;
+          input.pointerY = e.touches[0].clientY;
+        }
+      }, { passive: true });
+
+      // Dedicated Mobile / On-Screen Boost Button
+      const startTouchBoost = e => {
+        e.preventDefault();
+        e.stopPropagation();
+        sound.initContext();
+        input.touchBoost = true;
+        mobileBoostBtn.classList.add('boosting');
+      };
+
+      const endTouchBoost = e => {
+        if (e) e.stopPropagation();
+        input.touchBoost = false;
+        mobileBoostBtn.classList.remove('boosting');
+      };
+
+      mobileBoostBtn.addEventListener('pointerdown', startTouchBoost);
+      mobileBoostBtn.addEventListener('pointerup', endTouchBoost);
+      mobileBoostBtn.addEventListener('pointerleave', endTouchBoost);
+      mobileBoostBtn.addEventListener('pointercancel', endTouchBoost);
+
+      // Keyboard Controls
+      window.addEventListener('keydown', e => {
+        if (document.activeElement === nicknameInput) {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            startGameFromMenu();
+          }
+          return;
+        }
+
+        if (['ArrowLeft', 'ArrowRight', 'ArrowUp', ' '].includes(e.key)) {
+          e.preventDefault();
+        }
+
+        if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+          input.keyLeft = true;
+        } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+          input.keyRight = true;
+        } else if (e.key === ' ' || e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') {
+          input.keyBoost = true;
+        } else if (e.key === 'Enter' && isMenuOpen) {
+          startGameFromMenu();
+        } else if (e.key === 'm' || e.key === 'M') {
+          sound.toggleMute();
+          updateMuteButtonUI();
+        }
+      });
+
+      window.addEventListener('keyup', e => {
+        if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+          input.keyLeft = false;
+        } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+          input.keyRight = false;
+        } else if (e.key === ' ' || e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') {
+          input.keyBoost = false;
+        }
+      });
+
+      // Skin Carousel Controls
+      prevSkinBtn.addEventListener('click', () => {
+        selectedSkinIdx = (selectedSkinIdx - 1 + SNAKE_SKINS.length) % SNAKE_SKINS.length;
+        updateSkinPickerUI();
+      });
+
+      nextSkinBtn.addEventListener('click', () => {
+        selectedSkinIdx = (selectedSkinIdx + 1) % SNAKE_SKINS.length;
+        updateSkinPickerUI();
+      });
+
+      // Menu & HUD Action Buttons
+      playBtn.addEventListener('click', startGameFromMenu);
+      playAgainBtn.addEventListener('click', startGameFromMenu);
+      customizeBtn.addEventListener('click', openStartCustomization);
+
+      muteToggleBtn.addEventListener('click', () => {
+        sound.toggleMute();
+        updateMuteButtonUI();
+        muteToggleBtn.blur();
+      });
+
+      window.addEventListener('resize', resizeMainCanvas);
+
+      /* ------------------------------------------------------------------------
+         17. Boot Application
+         ------------------------------------------------------------------------ */
+      window.addEventListener('load', () => {
+        nicknameInput.value = Storage.get(STORAGE_KEYS.NICKNAME, '');
+        updateSkinPickerUI();
+        updateMuteButtonUI();
+        resizeMainCanvas();
+        initArenaWorld();
+        lastFrameTime = performance.now();
+        requestAnimationFrame(mainLoop);
+      });
+    })();
+  </script>
+</body>
+</html>
